@@ -8,7 +8,11 @@
 #include <queue.h>
 #include <task.h>
 
+#include <tusb.h>
+#include "/home/student/jtkj-projects/JTKJ-PicoRTOS-Project/libs/usb-serial-debug/include/usbSerialDebug/helper.h"
+
 #include "tkjhat/sdk.h"
+
 
 // Exercise 4. Include the libraries necessaries to use the usb-serial-debug, and tinyusb
 // Tehtävä 4 . Lisää usb-serial-debugin ja tinyusbin käyttämiseen tarvittavat kirjastot.
@@ -17,6 +21,7 @@
 
 #define DEFAULT_STACK_SIZE 2048
 #define CDC_ITF_TX      1
+#define BUFFER_SIZE 200
 
 
 // Tehtävä 3: Tilakoneen esittely Add missing states.
@@ -36,45 +41,45 @@ static void btn_fxn(uint gpio, uint32_t eventMask) {
 
 static void sensor_task(void *arg){
     (void)arg;
-    // Tehtävä 2: Alusta valoisuusanturi. Etsi SDK-dokumentaatiosta sopiva funktio.
-    // Exercise 2: Init the light sensor. Find in the SDK documentation the adequate function.
-    init_veml6030();
-    
 
-    for(;;){
-        
-        // Tehtävä 2: Muokkaa tästä eteenpäin sovelluskoodilla. Kommentoi seuraava rivi.
-        //             
-        // Exercise 2: Modify with application code here. Comment following line.
-        //             Read sensor data and print it out as string; 
-        //tight_loop_contents(); 
-        ambientLight = veml6030_read_light();
-        programState = DATA_READY;
-        //printf("Value: %d\n", lux);
+    //init_veml6030();
+    //init_ICM42670();
 
-   
+    float ax, ay, az, gx, gy, gz, t;
+    // Setting up the sensor. 
+    if (init_ICM42670() == 0) {
+        usb_serial_print("ICM-42670P initialized successfully!\n");
+
+        if (ICM42670_start_with_default_values() != 0){
+            usb_serial_print("ICM-42670P could not initialize accelerometer or gyroscope");
+        }
+        /*int _enablegyro = ICM42670_enable_accel_gyro_ln_mode();
+        usb_serial_print ("Enable gyro: %d\n",_enablegyro);
+        int _gyro = ICM42670_startGyro(ICM42670_GYRO_ODR_DEFAULT, ICM42670_GYRO_FSR_DEFAULT);
+        usb_serial_print ("Gyro return:  %d\n", _gyro);
+        int _accel = ICM42670_startAccel(ICM42670_ACCEL_ODR_DEFAULT, ICM42670_ACCEL_FSR_DEFAULT);
+        usb_serial_print ("Accel return:  %d\n", _accel);*/
+    } else {
+        usb_serial_print("Failed to initialize ICM-42670P.\n");
+    }
+    // Start collection data here. Infinite loop. 
+    uint8_t buf[BUFFER_SIZE];
+    while (1)
+    {
+        if (ICM42670_read_sensor_data(&ax, &ay, &az, &gx, &gy, &gz, &t) == 0) {
+            sprintf(buf,"Accel: X=%.2f, Y=%.2f, Z=%.2f | Gyro: X=%.2f, Y=%.2f, Z=%.2f| Temp: %2.2f°C\n", ax, ay, az, gx, gy, gz, t);
+            usb_serial_print(buf);
+
+            /*if ((ax >= 0.8) && (az <= 0.2)) {
+                usb_serial_print("-");
+            }*/
+
+        } else {
+            usb_serial_print("Failed to read imu data\n");
+        }
 
 
-        // Tehtävä 3:  Muokkaa aiemmin Tehtävässä 2 tehtyä koodia ylempänä.
-        //             Jos olet oikeassa tilassa, tallenna anturin arvo tulostamisen sijaan
-        //             globaaliin muuttujaan.
-        //             Sen jälkeen muuta tilaa.
-        // Exercise 3: Modify previous code done for Exercise 2, in previous lines. 
-        //             If you are in adequate state, instead of printing save the sensor value 
-        //             into the global variable.
-        //             After that, modify state
-
-
-
-
-
-        
-        // Exercise 2. Just for sanity check. Please, comment this out
-        // Tehtävä 2: Just for sanity check. Please, comment this out
-        //printf("sensorTask\n");
-
-        // Do not remove this
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        vTaskDelay(pdMS_TO_TICKS(500));
     }
 }
 
@@ -90,10 +95,10 @@ static void print_task(void *arg){
         //             Remember to modify state
         //             Do not forget to comment next line of code.
         //tight_loop_contents();
-        if (programState = DATA_READY) {
+        /*if (programState = DATA_READY) {
             printf("%d\n", ambientLight);
             programState = WAITING;
-        }
+        }*/
         
 
 
