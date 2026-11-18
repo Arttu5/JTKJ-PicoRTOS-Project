@@ -40,7 +40,7 @@ static void btn_fxn(uint gpio, uint32_t eventMask) {
     if (gpio == SW1_PIN) {
         char temp[3] = {symbol, ' ', '\0'};
         strcat(messageTx, temp);
-        blink_led(1);
+        //blink_led(1);
     }
 
     if (gpio == SW2_PIN && strlen(messageTx) > 0) {
@@ -114,17 +114,24 @@ static void imu_task(void *pvParameters) {
         usb_serial_print("Failed to initialize ICM-42670P.\n");
     }
     // Start collection data here. Infinite loop. 
-    //uint8_t buf[BUFFER_SIZE];
+    uint8_t buf[BUFFER_SIZE];
     while (1)
     {
-        if (ICM42670_read_sensor_data(&ax, &ay, &az, &gx, &gy, &gz, &t) == 0) {
+        if (ICM42670_read_sensor_data(&ax, &ay, &az, &gx, &gy, &gz, &t) == 0 ){
             if (az >= 0.8){
                 symbol = '-';
-            } else if (ax <= -0.8) {
+                //usb_serial_print("Merkki on -\n");
+            } else if (ax >= 0.8) {
                 symbol = '.';
-            } else {
+                //usb_serial_print("Merkki on .\n");
+            } else if (az <= -0.8) {
                 symbol = ' ';
+                //usb_serial_print("Merkki on väli\n");
+            } else {
+                sprintf(buf,"Accel: X=%.2f, Y=%.2f, Z=%.2f \n", ax, ay, az);
+                usb_serial_print(buf);
             }
+            
         } else {
             usb_serial_print("Failed to read imu data\n");
         }
