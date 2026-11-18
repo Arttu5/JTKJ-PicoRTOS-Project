@@ -22,6 +22,8 @@
 #define DEFAULT_STACK_SIZE 2048
 #define CDC_ITF_DATA      1
 #define BUFFER_SIZE 100
+#define DEFAULT_I2C_SDA_PIN   12
+#define DEFAULT_I2C_SCL_PIN   13
 
 
 // Tehtävä 3: Tilakoneen esittely Add missing states.
@@ -58,9 +60,10 @@ void tud_cdc_rx_cb(uint8_t itf) {
 
     // Also read CDC0 so that its receive buffer does not fill up.
     if (itf == 1 && count > 0) {
-        snprintf((char*)messageRx, sizeof(messageRx), "Viesti: %s", buf);
-        programState = DATA_RECEIVED;
+        //snprintf((char*)messageRx, sizeof(messageRx), "Viesti: %s", buf);
+        strcat(messageRx, buf);
 
+        programState = DATA_RECEIVED;
         if (tud_cdc_n_connected(0)) {
             // Nonblocking writes: do not use the waiting logger here.
             // Meaning, do not use usb_serial_print() or usb_serial_flush() here.
@@ -69,6 +72,7 @@ void tud_cdc_rx_cb(uint8_t itf) {
             // Include the appended newline, but not the null terminator.
             tud_cdc_n_write(0, buf, count + 1);
             tud_cdc_n_write_flush(0);
+            
         }
 
         if (tud_cdc_n_connected(1)) {
@@ -80,14 +84,17 @@ void tud_cdc_rx_cb(uint8_t itf) {
 
 static void display_task(void *pvParameters) {
     (void)pvParameters;
-
-    init_display();
+    
+    //init_display();
+    //clear_display();
 
     while (1) 
     {
         if (programState == DATA_RECEIVED) {
             clear_display();
             write_text(messageRx);
+            messageRx[0] = '\0';
+            //write_text("Toimii");
 
             programState = WAITING;
         }
@@ -118,6 +125,8 @@ static void imu_task(void *pvParameters) {
     while (1)
     {
         if (ICM42670_read_sensor_data(&ax, &ay, &az, &gx, &gy, &gz, &t) == 0 ){
+            sprintf(buf,"X=%.2f, Y=%.2f, Z=%.2f \n", ax, ay, az);
+            usb_serial_print(buf);
             if (az >= 0.8){
                 symbol = '-';
                 //usb_serial_print("Merkki on -\n");
@@ -243,6 +252,10 @@ int main() {
     init_led();
     init_sw1(); 
     init_sw2();
+
+    init_display();
+    clear_display();
+    //init_i2c_default();
 
     gpio_set_irq_enabled_with_callback(SW1_PIN, GPIO_IRQ_EDGE_FALL, true, btn_fxn);
     gpio_set_irq_enabled_with_callback(SW2_PIN, GPIO_IRQ_EDGE_FALL, true, btn_fxn);
