@@ -7,7 +7,7 @@
 #include <FreeRTOS.h>
 #include <queue.h>
 #include <task.h>
-
+#include <semphr.h>
 #include <tusb.h>
 //#include "/home/student/jtkj-projects/JTKJ-PicoRTOS-Project/libs/usb-serial-debug/include/usbSerialDebug/helper.h"
 #include "usbSerialDebug/helper.h"
@@ -75,6 +75,9 @@ static void btn_fxn(uint gpio, uint32_t eventMask) {
     }
 }
 
+// I2C Mutex, jotta I2C väylää käyttäisi vain yksi laite kerrallaan
+static SemaphoreHandle_t i2cMutex = NULL;
+
 //Called by the USB task when a CDC interface receives data.
 void tud_cdc_rx_cb(uint8_t itf) {
     // Reserve two extra bytes for the newline and string terminator.
@@ -113,21 +116,48 @@ static void display_task(void *pvParameters) {
     //init_display();
     //clear_display();
 
-    while (1) 
-    {
-        if (programState == DATA_RECEIVED) {
-            clear_display();
-            write_text(messageRx);
-            messageRx[0] = '\0';
+    //while (1) 
+    //{
+    //    if (programState == DATA_RECEIVED) {
+    //        clear_display();
+    //        write_text(messageRx);
+    //        messageRx[0] = '\0';
             //write_text("Toimii");
 
-            programState = WAITING;
+    //        programState = WAITING;
+    //    }
+
+
+    //    vTaskDelay(pdMS_TO_TICKS(200));
+
+    while (1) {
+
+        // Tarkistetaan, onko USB:n kautta vastaanotettu viesti
+        if (programState == DATA_RECEIVED) {
+
+            // Pyydetään käyttöoikeutta I2C-väylään
+            if (xSemaphoreTake(i2cMutex, portMAX_DELAY) == pdTRUE) {
+
+                // Tyhjennetään näyttö
+                clear_display();
+
+                // Kirjoitetaan vastaanotettu viesti näytölle
+                write_text(messageRx);
+
+                // Vapautetaan I2C-väylä
+                xSemaphoreGive(i2cMutex);
+
+                // Tyhjennetään vastaanottopuskuri
+                messageRx[0] = '\0';
+
+                // Palautetaan ohjelma odotustilaan
+                programState = WAITING;
+            }
         }
 
-
+        // Odotetaan 200 ms ennen seuraavaa tarkistusta
         vTaskDelay(pdMS_TO_TICKS(200));
     }
-    
 }
 
 //Tehtävä, joka väläyttää lediä aina tietetyn ajan
@@ -151,20 +181,58 @@ static void imu_task(void *pvParameters) {
     
     float ax, ay, az, gx, gy, gz, t;
     // Setting up the sensor. 
-    if (init_ICM42670() == 0) {
-        usb_serial_print("ICM-42670P initialized successfully!\n");
-        if (ICM42670_start_with_default_values() != 0){
-            usb_serial_print("ICM-42670P could not initialize accelerometer or gyroscope");
+    //if (init_ICM42670() == 0) {
+    //    usb_serial_print("ICM-42670P initialized successfully!\n");
+    //    if (ICM42670_start_with_default_values() != 0){
+    //        usb_serial_print("ICM-42670P could not initialize accelerometer or gyroscope");
+    //    }
+
+    //} else {
+    //    usb_serial_print("Failed to initialize ICM-42670P.\n");
+    //}
+    // Start collection data here. Infinite loop. 
+    // Setting up the sensor with I2C Mutex protection
+    if (xSemaphoreTake(i2cMutex, portMAX_DELAY) == pdTRUE) {
+
+        int initResult = init_ICM42670();
+        int startResult = -1;
+
+        if (initResult == 0) {
+            startResult = ICM42670_start_with_default_values();
         }
 
+        xSemaphoreGive(i2cMutex);
+
+        if (initResult == 0) {
+            usb_serial_print("ICM-42670P initialized successfully!\n");
+
+        if (startResult != 0) {
+            usb_serial_print("ICM-42670P could not initialize accelerometer or gyroscope\n");
+        }
     } else {
         usb_serial_print("Failed to initialize ICM-42670P.\n");
     }
-    // Start collection data here. Infinite loop. 
+}
     char buf[BUFFER_SIZE];
     while (1)
     {
-        if (ICM42670_read_sensor_data(&ax, &ay, &az, &gx, &gy, &gz, &t) == 0 ){
+        //if (ICM42670_read_sensor_data(&ax, &ay, &az, &gx, &gy, &gz, &t) == 0 ){
+        int readResult = -1;
+
+        // Pyydetään käyttöoikeutta I2C-väylään
+        if (xSemaphoreTake(i2cMutex, portMAX_DELAY) == pdTRUE) {
+
+        // Luetaan IMU-anturi
+        readResult = ICM42670_read_sensor_data(
+            &ax, &ay, &az,
+            &gx, &gy, &gz, &t
+        );
+
+        // Vapautetaan I2C-väylä
+        xSemaphoreGive(i2cMutex);
+    }
+
+    if (readResult == 0) {
             sprintf(buf,"X=%.2f, Y=%.2f, Z=%.2f \n", ax, ay, az);
             usb_serial_print(buf);
             if (az >= 0.8){
@@ -296,6 +364,13 @@ int main() {
     init_display();
     clear_display();
     //init_i2c_default();
+
+    i2cMutex = xSemaphoreCreateMutex();
+
+    if (i2cMutex == NULL) {
+        printf("I2C Mutexin teko ei onnistunut \n");
+        return 0;
+    }
 
     ledQueue = xQueueCreate(8, sizeof(TickType_t));
 
