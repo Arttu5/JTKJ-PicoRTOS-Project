@@ -130,7 +130,7 @@ static void imu_task(void *pvParameters) {
             if (az >= 0.8){
                 symbol = '-';
                 //usb_serial_print("Merkki on -\n");
-            } else if (ax >= 0.8) {
+            } else if (ax >= 0.8 || ax <= -0.8) {
                 symbol = '.';
                 //usb_serial_print("Merkki on .\n");
             } else if (az <= -0.8) {
