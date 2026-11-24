@@ -121,7 +121,7 @@ static void imu_task(void *pvParameters) {
         usb_serial_print("Failed to initialize ICM-42670P.\n");
     }
     // Start collection data here. Infinite loop. 
-    uint8_t buf[BUFFER_SIZE];
+    char buf[BUFFER_SIZE];
     while (1)
     {
         if (ICM42670_read_sensor_data(&ax, &ay, &az, &gx, &gy, &gz, &t) == 0 ){
