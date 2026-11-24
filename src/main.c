@@ -35,14 +35,39 @@ char messageTx[BUFFER_SIZE];
 char messageRx[BUFFER_SIZE];
 char symbol;
 
+// Ledin käyttöön tarkoittettu viestijono
+static QueueHandle_t ledQueue = NULL;
+
 static void btn_fxn(uint gpio, uint32_t eventMask) {
     //toggle_led();
 
 
     if (gpio == SW1_PIN) {
+        char selectedSymbol = symbol;
         char temp[3] = {symbol, ' ', '\0'};
         strcat(messageTx, temp);
         //blink_led(1);
+        TickType_t ledDuration = 0;
+
+        if (selectedSymbol == '.') {
+            ledDuration = pdMS_TO_TICKS(50);
+        }
+        else if (selectedSymbol == '-') {
+            ledDuration = pdMS_TO_TICKS(150);
+        }
+        //Led pyynnön lähetys
+        if (ledDuration > 0 && ledQueue != NULL) {
+            BaseType_t higherPriorityTaskWoken = pdFALSE;
+
+            xQueueSendFromISR(
+            ledQueue,
+            &ledDuration,
+            &higherPriorityTaskWoken
+        );
+
+        portYIELD_FROM_ISR(higherPriorityTaskWoken);
+        }
+
     }
 
     if (gpio == SW2_PIN && strlen(messageTx) > 0) {
@@ -104,6 +129,21 @@ static void display_task(void *pvParameters) {
     }
     
 }
+
+//Tehtävä, joka väläyttää lediä aina tietetyn ajan
+static void led_task(void *pvParameters) {
+    (void)pvParameters;
+    TickType_t duration;
+
+    while (1) {
+        if (xQueueReceive(ledQueue, &duration, portMAX_DELAY) == pdPASS) {
+            set_led_status(true);
+            vTaskDelay(duration);
+            set_led_status(false);
+        }
+    }
+}
+
 
 static void imu_task(void *pvParameters) {
     (void)pvParameters;
@@ -257,6 +297,13 @@ int main() {
     clear_display();
     //init_i2c_default();
 
+    ledQueue = xQueueCreate(8, sizeof(TickType_t));
+
+    if (ledQueue == NULL) {
+        printf("LED queue creation failed\n");
+        return 0;
+    }
+
     gpio_set_irq_enabled_with_callback(SW1_PIN, GPIO_IRQ_EDGE_FALL, true, btn_fxn);
     gpio_set_irq_enabled_with_callback(SW2_PIN, GPIO_IRQ_EDGE_FALL, true, btn_fxn);
 
@@ -311,6 +358,21 @@ int main() {
 
     if(result != pdPASS) {
         printf("Display task creation failed\n");
+        return 0;
+    }
+
+    // Create LED task
+    result = xTaskCreate(
+        led_task,
+        "led",
+        DEFAULT_STACK_SIZE,
+        NULL,
+        2,
+        NULL
+    );
+
+    if (result != pdPASS) {
+        printf("LED task creation failed\n");
         return 0;
     }
 
