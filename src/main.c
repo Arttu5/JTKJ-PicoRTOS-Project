@@ -39,12 +39,11 @@ char symbol;
 static QueueHandle_t ledQueue = NULL;
 
 static void btn_fxn(uint gpio, uint32_t eventMask) {
-    //toggle_led();
 
 
     if (gpio == SW1_PIN) {
         char selectedSymbol = symbol;
-        char temp[3] = {symbol, ' ', '\0'};
+        char temp[2] = {symbol, '\0'};
         strcat(messageTx, temp);
         //blink_led(1);
         TickType_t ledDuration = 0;
@@ -71,6 +70,8 @@ static void btn_fxn(uint gpio, uint32_t eventMask) {
     }
 
     if (gpio == SW2_PIN && strlen(messageTx) > 0) {
+        char temp2[4] = {' ', ' ' , '\n','\0'};
+        strcat(messageTx, temp2);
         programState = DATA_READY;
     }
 }
@@ -102,9 +103,9 @@ void tud_cdc_rx_cb(uint8_t itf) {
             tud_cdc_n_write_flush(0);
             
         }
-
+        // Tarkista 
         if (tud_cdc_n_connected(1)) {
-            tud_cdc_n_write(1, "OK\n", 3);
+        //    tud_cdc_n_write(1, "OK\n", 3);
             tud_cdc_n_write_flush(1);
         }
     }
@@ -180,7 +181,7 @@ static void display_task(void *pvParameters) {
                 clear_display();
 
                 // Kirjoitetaan vastaanotettu viesti näytölle
-                write_text(messageRx);
+                write_text_xy(0, 0, messageRx);
 
                 // Vapautetaan I2C-väylä
                 xSemaphoreGive(i2cMutex);
