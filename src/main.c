@@ -110,6 +110,44 @@ void tud_cdc_rx_cb(uint8_t itf) {
     }
 }
 
+// soittoääni onnistuneesta lähetyksestä
+static void play_tx_melody(void) {
+    const uint32_t notes[] = {
+        587, 659, 784, 659, 988, 988, 880,
+        587, 659, 784, 659, 880, 880, 784
+    };
+    const uint32_t durations[] = {
+        80,  80,  80,  80,  460, 200, 700,
+        80,  80,  80,  80,  460, 200, 600
+    };
+    const int count = sizeof(notes) / sizeof(notes[0]);
+
+    for (int i = 0; i < count; i++) {
+        buzzer_play_tone(notes[i], durations[i]);
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
+}
+
+// saapuvan morsetuksen soitto summerilla
+static void play_morse_audio(const char *msg) {
+    const uint32_t tone_hz = 600;
+    const uint32_t dot_ms  = 100;
+    const uint32_t dash_ms = 300;
+
+    for (int i = 0; msg[i] != '\0'; i++) {
+        if (msg[i] == '.') {
+            buzzer_play_tone(tone_hz, dot_ms);
+            vTaskDelay(pdMS_TO_TICKS(dot_ms));
+        } else if (msg[i] == '-') {
+            buzzer_play_tone(tone_hz, dash_ms);
+            vTaskDelay(pdMS_TO_TICKS(dot_ms));
+        } else if (msg[i] == ' ') {
+            vTaskDelay(pdMS_TO_TICKS(300));
+        }
+    }
+}
+
+
 static void display_task(void *pvParameters) {
     (void)pvParameters;
     
@@ -146,6 +184,9 @@ static void display_task(void *pvParameters) {
 
                 // Vapautetaan I2C-väylä
                 xSemaphoreGive(i2cMutex);
+
+                // Soitetaan summerilla vastaanotettu morsetus
+                play_morse_audio(messageRx);
 
                 // Tyhjennetään vastaanottopuskuri
                 messageRx[0] = '\0';
@@ -289,6 +330,7 @@ static void print_task(void *arg){
                 usb_serial_print(buf);
                 usb_serial_flush();
             }
+            play_tx_melody();
             messageTx[0] = '\0';
             programState = WAITING;
         }
@@ -360,6 +402,7 @@ int main() {
     init_led();
     init_sw1(); 
     init_sw2();
+    init_buzzer();
 
     init_display();
     clear_display();
