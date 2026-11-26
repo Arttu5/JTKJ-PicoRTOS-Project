@@ -25,6 +25,7 @@
 enum state { WAITING=1, DATA_READY=2, DATA_RECEIVED=3};
 enum state programState = WAITING;
 
+// Globaalit puskurit viestien lähettämiseen ja vastaanottamiseen sekä symbolin tallentamiseen.
 char messageTx[BUFFER_SIZE];
 char messageRx[BUFFER_SIZE];
 char symbol;
@@ -32,9 +33,10 @@ char symbol;
 // Ledin käyttöön tarkoittettu viestijono
 static QueueHandle_t ledQueue = NULL;
 
+// Painikkeiden käsittelyyn tarkoitettu funktio, joka tarkistaa kumpaa painiketta painettiin ja suorittaa tarvittavat toimenpiteet.
 static void btn_fxn(uint gpio, uint32_t eventMask) {
 
-
+    // Tarkistetaan, kumpaa painiketta painettiin ja lisätään symboli viestipuskuriin jos painike oli SW1.
     if (gpio == SW1_PIN) {
         char selectedSymbol = symbol;
         char temp[2] = {symbol, '\0'};
@@ -42,6 +44,7 @@ static void btn_fxn(uint gpio, uint32_t eventMask) {
         //blink_led(1);
         TickType_t ledDuration = 0;
 
+        // Määritetään lediin liittyvä kesto valitun symbolin mukaan
         if (selectedSymbol == '.') {
             ledDuration = pdMS_TO_TICKS(50);
         }
@@ -62,7 +65,7 @@ static void btn_fxn(uint gpio, uint32_t eventMask) {
         }
 
     }
-
+    // Tarkistetaan, oliko painike SW2 ja onko viestipuskuriin lisätty merkkejä. Jos on, lisätään viestiin rivinvaihto ja asetetaan ohjelman tila DATA_READY-tilaan.
     if (gpio == SW2_PIN && strlen(messageTx) > 0) {
         char temp2[4] = {' ', ' ' , '\n','\0'};
         strcat(messageTx, temp2);
@@ -73,7 +76,7 @@ static void btn_fxn(uint gpio, uint32_t eventMask) {
 // I2C Mutex, jotta I2C väylää käyttäisi vain yksi laite kerrallaan
 static SemaphoreHandle_t i2cMutex = NULL;
 
-//Called by the USB task when a CDC interface receives data.
+// Called by the USB task when a CDC interface receives data.
 void tud_cdc_rx_cb(uint8_t itf) {
     // Reserve two extra bytes for the newline and string terminator.
     char buf[CFG_TUD_CDC_RX_BUFSIZE + 2];
@@ -83,7 +86,6 @@ void tud_cdc_rx_cb(uint8_t itf) {
 
     // Also read CDC0 so that its receive buffer does not fill up.
     if (itf == 1 && count > 0) {
-        //snprintf((char*)messageRx, sizeof(messageRx), "Viesti: %s", buf);
         strcat(messageRx, buf);
 
         programState = DATA_RECEIVED;
@@ -145,26 +147,9 @@ static void play_morse_audio(const char *msg) {
     }
 }
 
-
+// Tehtävä, joka tarkistaa onko USB:n kautta vastaanotettu viesti ja näyttää sen näytöllä.
 static void display_task(void *pvParameters) {
     (void)pvParameters;
-    
-    //init_display();
-    //clear_display();
-
-    //while (1) 
-    //{
-    //    if (programState == DATA_RECEIVED) {
-    //        clear_display();
-    //        write_text(messageRx);
-    //        messageRx[0] = '\0';
-            //write_text("Toimii");
-
-    //        programState = WAITING;
-    //    }
-
-
-    //    vTaskDelay(pdMS_TO_TICKS(200));
 
     while (1) {
 
@@ -213,7 +198,7 @@ static void led_task(void *pvParameters) {
     }
 }
 
-
+// Tehtävä, joka lukee ICM-42670P anturin dataa ja lähettää sen USB:n kautta.
 static void imu_task(void *pvParameters) {
     (void)pvParameters;
 
@@ -274,6 +259,7 @@ static void imu_task(void *pvParameters) {
     if (readResult == 0) {
             sprintf(buf,"X=%.2f, Y=%.2f, Z=%.2f \n", ax, ay, az);
             usb_serial_print(buf);
+            // Tarkistetaan akselien arvot ja määritetään symboli sen mukaan
             if (az >= 0.8){
                 symbol = '-';
                 //usb_serial_print("Merkki on -\n");
@@ -296,6 +282,7 @@ static void imu_task(void *pvParameters) {
 
 }
 
+// Tehtävä, joka tarkistaa onko USB:n kautta vastaanotettu viesti ja lähettää sen näytölle.
 static void print_task(void *arg){
     (void)arg;
     
@@ -334,23 +321,6 @@ static void print_task(void *arg){
         }
         vTaskDelay(pdMS_TO_TICKS(100));
     }
-        
-        // Exercise 4. Use usb_serial_print() instead of printf() for debug output
-        //             produced after the USB serial library has been initialized.
-        //             Do not replace error messages that can execute before usb_serial_init().
-        //             Use the TinyUSB library to send data through the other serial port (CDC 1).
-        //             You can use the functions at https://github.com/hathach/tinyusb/blob/master/src/class/cdc/cdc_device.h
-        //             You can find an example at hello_dual_cdc
-        //             The data written using this should be provided using csv
-        //             timestamp, illuminance
-        // Tehtävä 4. Käytä usb_serial_print()-funktiota printf()-funktion sijaan
-        //            debug-tulostukseen sen jälkeen, kun USB-sarjaliikennekirjasto on alustettu.
-        //            Älä korvaa virheilmoituksia, jotka voivat suorittua ennen usb_serial_init()-kutsua.
-        //            Käytä TinyUSB-kirjastoa datan lähettämiseen toisen sarjaportin (CDC 1) kautta.
-        //            Voit käyttää funktioita: https://github.com/hathach/tinyusb/blob/master/src/class/cdc/cdc_device.h
-        //            Esimerkki löytyy hello_dual_cdc-projektista.
-        //            Tällä menetelmällä kirjoitettu data tulee antaa CSV-muodossa:
-        //            timestamp, illuminance
 
         // Do not remove this
         //vTaskDelay(pdMS_TO_TICKS(200));
@@ -365,12 +335,6 @@ static void usbTask(void *arg) {
 }
 
 int main() {
-
-    // Exercise 4: Comment the statement stdio_init_all(); 
-    //             Instead, add AT THE END OF MAIN (before vTaskStartScheduler();) adequate statements to enable the TinyUSB library and the usb-serial-debug.
-    //             You can see hello_dual_cdc for help
-    //             In CMakeLists.txt add usb_serial_debug to target_link_libraries.
-    //             In CMakeLists.txt deactivate pico_enable_stdio_usb
 
     //stdio_init_all();
 
@@ -406,26 +370,16 @@ int main() {
         return 0;
     }
 
+    // Määritetään painikkeiden keskeytykset ja niihin liittyvä callback-funktio
     gpio_set_irq_enabled_with_callback(SW1_PIN, GPIO_IRQ_EDGE_FALL, true, btn_fxn);
-    gpio_set_irq_enabled_with_callback(SW2_PIN, GPIO_IRQ_EDGE_FALL, true, btn_fxn);
-
-    
-
-    
+    gpio_set_irq_enabled_with_callback(SW2_PIN, GPIO_IRQ_EDGE_FALL, true, btn_fxn);  
     
     TaskHandle_t hImuTask, hPrintTask, hUSB, hDisplayTask = NULL;
-
-    // Exercise 4: Uncomment this xTaskCreate to create the task that enables dual USB communication.
-    // Tehtävä 4: Poista tämän xTaskCreate-rivin kommentointi luodaksesi tehtävän,
-    // joka mahdollistaa kaksikanavaisen USB-viestinnän.
-
     
     xTaskCreate(usbTask, "usb", 2048, NULL, 3, &hUSB);
     #if (configNUMBER_OF_CORES > 1)
         vTaskCoreAffinitySet(hUSB, 1u << 0);
     #endif
-    
-
 
     // Create the tasks with xTaskCreate
     BaseType_t result = xTaskCreate(imu_task, // (en) Task function
