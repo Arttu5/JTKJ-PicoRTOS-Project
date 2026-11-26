@@ -1,4 +1,3 @@
-
 #include <stdio.h>
 #include <string.h>
 
@@ -14,11 +13,6 @@
 #include "tkjhat/sdk.h"
 
 
-// Exercise 4. Include the libraries necessaries to use the usb-serial-debug, and tinyusb
-// Tehtävä 4 . Lisää usb-serial-debugin ja tinyusbin käyttämiseen tarvittavat kirjastot.
-
-
-
 #define DEFAULT_STACK_SIZE 2048
 #define CDC_ITF_DATA      1
 #define BUFFER_SIZE 100
@@ -27,7 +21,7 @@
 
 
 // Tehtävä 3: Tilakoneen esittely Add missing states.
-// Exercise 3: Definition of the state machine. Add missing states.
+
 enum state { WAITING=1, DATA_READY=2, DATA_RECEIVED=3};
 enum state programState = WAITING;
 
@@ -113,10 +107,13 @@ void tud_cdc_rx_cb(uint8_t itf) {
 
 // soittoääni onnistuneesta lähetyksestä
 static void play_tx_melody(void) {
+    
+    // nuottien taajuudet hertseinä
     const uint32_t notes[] = {
         587, 659, 784, 659, 988, 988, 880,
         587, 659, 784, 659, 880, 880, 784
     };
+    // nuottien kesto millisekunteina
     const uint32_t durations[] = {
         80,  80,  80,  80,  460, 200, 700,
         80,  80,  80,  80,  460, 200, 600
@@ -125,7 +122,7 @@ static void play_tx_melody(void) {
 
     for (int i = 0; i < count; i++) {
         buzzer_play_tone(notes[i], durations[i]);
-        vTaskDelay(pdMS_TO_TICKS(50));
+        vTaskDelay(pdMS_TO_TICKS(50)); // tauko nuottien välissä
     }
 }
 
@@ -143,7 +140,7 @@ static void play_morse_audio(const char *msg) {
             buzzer_play_tone(tone_hz, dash_ms);
             vTaskDelay(pdMS_TO_TICKS(dot_ms));
         } else if (msg[i] == ' ') {
-            vTaskDelay(pdMS_TO_TICKS(300));
+            vTaskDelay(pdMS_TO_TICKS(300));  // tauko merkkien välissä
         }
     }
 }
@@ -359,11 +356,6 @@ static void print_task(void *arg){
         //vTaskDelay(pdMS_TO_TICKS(200));
 }
 
-
-// Exercise 4: Uncomment the following line to activate the TinyUSB library.  
-// Tehtävä 4:  Poista seuraavan rivin kommentointi aktivoidaksesi TinyUSB-kirjaston. 
-
-
 static void usbTask(void *arg) {
     (void)arg;
     while (1) {
@@ -379,11 +371,6 @@ int main() {
     //             You can see hello_dual_cdc for help
     //             In CMakeLists.txt add usb_serial_debug to target_link_libraries.
     //             In CMakeLists.txt deactivate pico_enable_stdio_usb
-    // Tehtävä 4:  Kommentoi lause stdio_init_all();
-    //             Sen sijaan lisää MAIN LOPPUUN (ennen vTaskStartScheduler();) tarvittavat komennot aktivoidaksesi TinyUSB-kirjaston ja usb-serial-debugin.
-    //             Voit katsoa apua esimerkistä hello_dual_cdc.
-    //             Lisää CMakeLists.txt-tiedoston target_link_libraries-kohtaan usb_serial_debug.
-    //             Poista CMakeLists.txt-tiedostosta käytöstä pico_enable_stdio_usb
 
     //stdio_init_all();
 
@@ -395,20 +382,16 @@ int main() {
     init_hat_sdk();
     sleep_ms(300); //Wait some time so initialization of USB and hat is done.
 
-    // Exercise 1: Initialize the button and the led and define an register the corresponding interrupton.
-    //             Interruption handler is defined up as btn_fxn
-    // Tehtävä 1:  Alusta painike ja LEd ja rekisteröi vastaava keskeytys.
-    //             Keskeytyskäsittelijä on määritelty yläpuolella nimellä btn_fxn
-
+    //  Alustetaan led, painikkeet, summeri ja näyttö
     init_led();
     init_sw1(); 
     init_sw2();
     init_buzzer();
-
     init_display();
+    
+    // Tyhjennetään näyttö käynnistyksessä
     clear_display();
-    //init_i2c_default();
-
+    
     i2cMutex = xSemaphoreCreateMutex();
 
     if (i2cMutex == NULL) {
